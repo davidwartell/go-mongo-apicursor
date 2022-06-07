@@ -1,4 +1,4 @@
-# go-commons-drw
+# go-mongo-apicursor
 
 Go code for helping with keeping MongoDB cursors across web service calls, especially GraphQL. Apache License.
 
