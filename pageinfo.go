@@ -15,7 +15,7 @@
  *
  */
 
-package go_mongo_apicursor
+package apicursor
 
 type PageInfo struct {
 	// When paginating forwards, the cursor to continue.

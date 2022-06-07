@@ -15,7 +15,7 @@
  *
  */
 
-package go_mongo_apicursor
+package apicursor
 
 import (
 	"context"
