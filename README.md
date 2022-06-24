@@ -167,12 +167,12 @@ func (r *queryResolver) Persons(ctx context.Context, after *string, before *stri
 
 type PersonCursorMarshaler struct{}
 
-func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilter bson.M) (err error) {
-	err = c.SetTimeCursorFilter(findFilter, "createdTime")
+func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilter bson.M, naturalSortDirection int) (err error) {
+	err = c.SetTimeCursorFilter(findFilter, "createdTime", naturalSortDirection)
 	if err != nil {
 		return
 	}
-	err = c.SetUUIDCursorFilter(findFilter, "_id")
+	err = c.SetUUIDCursorFilter(findFilter, "_id", naturalSortDirection)
 	if err != nil {
 		return
 	}
@@ -217,7 +217,7 @@ func (s *personService) Find(ctx context.Context, queryCursor apicursor.APICurso
 		return
 	}
 	
-	err = queryCursor.UnmarshalMongo(filter)
+	err = queryCursor.UnmarshalMongo(filter, sortDirection)
 	if err != nil {
 		return
 	}
