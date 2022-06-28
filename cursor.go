@@ -33,6 +33,11 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 const MaxLimitAllowed = int32(1000)
 const DefaultLimit = int32(10)
 
+const (
+	GreaterThanFilterOperator = "$gt"
+	LessThanFilterOperator    = "$lt"
+)
+
 type APICursor interface {
 	// LoadFromAPIRequest loads a cursor from query input and sets the modelFactory.
 	LoadFromAPIRequest(after *string, before *string, first *int, last *int, modelFactory ModelFactory) (err error)
@@ -437,9 +442,9 @@ func (c *cursor) SetUUIDCursorFilter(findFilter bson.M, fieldName string, natura
 func (c *cursor) cursorFilterOperator(naturalSortDirection int) string {
 	direction := c.CursorFilterSortDirection(naturalSortDirection)
 	if direction > 0 {
-		return "$gt"
+		return GreaterThanFilterOperator
 	} else {
-		return "$lt"
+		return LessThanFilterOperator
 	}
 }
 
