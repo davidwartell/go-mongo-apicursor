@@ -48,6 +48,9 @@ type APICursor interface {
 	// SetUUIDCursorFilter attempts to apply fieldName to the filter parsed as a mongouuid.UUID
 	SetUUIDCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
+	// SetStringCursorFilter attempts to apply fieldName to the filter parsed as a string
+	SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
+
 	// FindLimit calculates the limit to a database query based on requested count
 	FindLimit() int64
 
@@ -432,6 +435,24 @@ func (c *cursor) SetUUIDCursorFilter(findFilter bson.M, fieldName string, natura
 			return
 		}
 		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), uuid}}
+	} else {
+		err = errors.Errorf("cursor invalid: expected field name %s not found", fieldName)
+		return
+	}
+	return
+}
+
+// SetStringCursorFilter looks for a field named fieldName in the cursor and assumes it is a string
+func (c *cursor) SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error) {
+	cursorValues := c.cursorFilter()
+	if len(cursorValues) == 0 {
+		// if no cursor specified do nothing and that's ok
+		return
+	}
+	// Note: If we have a cursor it should be a valid one so error after here
+
+	if fieldValue, ok := cursorValues[fieldName]; ok {
+		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), fieldValue}}
 	} else {
 		err = errors.Errorf("cursor invalid: expected field name %s not found", fieldName)
 		return
