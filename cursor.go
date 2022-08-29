@@ -346,8 +346,7 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 		c.requestParams.first = &newFirst
 	}
 
-	// only use after if first is specified
-	if c.requestParams.first != nil && after != nil && len(*after) > 0 {
+	if after != nil && len(*after) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*after)
 		if err != nil {
@@ -363,7 +362,7 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 		}
 
 		c.requestParams.after = &cursorStr
-	} else if c.requestParams.last != nil && before != nil && len(*before) > 0 {
+	} else if before != nil && len(*before) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*before)
 		if err != nil {
