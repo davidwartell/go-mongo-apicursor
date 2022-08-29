@@ -219,27 +219,27 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	// decorate all the Edges with a cursor which is the cursor to supply to an after argument to start a page at this Edge.
 	newEdgeCursor := newCursor()
 
-	// first edge is special case if we are paging forward
-	// if the cursor supplied by caller to query had an after then we are not at the beginning of the Connection
-	if len(edges) > 0 && c.isForward() {
-		if c.isAfter() {
-			newEdgeCursor.after = c.after
-		} else {
-			// we are at first item of first page so after = ""
-		}
-		var edgeCursrStr string
-		edgeCursrStr, err = newEdgeCursor.AfterCursor()
-		if err != nil {
-			return
-		}
-		edges[0].SetCursor(edgeCursrStr)
-	}
+	//// first edge is special case if we are paging forward
+	//// if the cursor supplied by caller to query had an after then we are not at the beginning of the Connection
+	//if len(edges) > 0 && c.isForward() {
+	//	if c.isAfter() {
+	//		newEdgeCursor.after = c.after
+	//	} else {
+	//		// we are at first item of first page so after = ""
+	//	}
+	//	var edgeCursrStr string
+	//	edgeCursrStr, err = newEdgeCursor.AfterCursor()
+	//	if err != nil {
+	//		return
+	//	}
+	//	edges[0].SetCursor(edgeCursrStr)
+	//}
 
 	// add cursors to all of the edges
-	for i := 1; i < len(edges); i++ {
+	for i := 0; i < len(edges); i++ {
 		newEdgeCursor = newCursor()
 		var cursorFields map[string]string
-		cursorFields, err = c.cursorMarshaler.Marshal(edges[i-1].GetNode())
+		cursorFields, err = c.cursorMarshaler.Marshal(edges[i].GetNode())
 		if err != nil {
 			return
 		}
@@ -282,38 +282,39 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	connection.SetPageInfo(pageInfo)
 
 	if len(edges) > 0 {
-		if pageInfo.HasNextPage {
-			newAfterCursor := newCursor()
-			var cursorFields map[string]string
-			cursorFields, err = c.cursorMarshaler.Marshal(edges[len(edges)-1].GetNode())
-			if err != nil {
-				return
-			}
-			newAfterCursor.after = cursorFields
-			var edgeCursrStr string
-			edgeCursrStr, err = newEdgeCursor.AfterCursor()
-			if err != nil {
-				return
-			}
-			pageInfo.EndCursor = &edgeCursrStr
-		}
 
-		if c.isAfter() || (!c.isForward() && pageInfo.HasPreviousPage) {
-			newBeforeCursor := newCursor()
-			var cursorFields map[string]string
-			cursorFields, err = c.cursorMarshaler.Marshal(edges[0].GetNode())
-			if err != nil {
-				return
-			}
-			newBeforeCursor.before = cursorFields
-			var edgeCursrStr string
-			edgeCursrStr, err = newBeforeCursor.BeforeCursor()
-			if err != nil {
-				return
-			}
-			pageInfo.StartCursor = &edgeCursrStr
-			pageInfo.HasPreviousPage = true
+		//if pageInfo.HasNextPage {
+		var endCursorFields map[string]string
+		var endCursorStr string
+		newAfterCursor := newCursor()
+		endCursorFields, err = c.cursorMarshaler.Marshal(edges[len(edges)-1].GetNode())
+		if err != nil {
+			return
 		}
+		newAfterCursor.after = endCursorFields
+		endCursorStr, err = newAfterCursor.AfterCursor()
+		if err != nil {
+			return
+		}
+		pageInfo.EndCursor = &endCursorStr
+		//}
+
+		//if c.isAfter() || (!c.isForward() && pageInfo.HasPreviousPage) {
+		var startCursorFields map[string]string
+		var startCursorStr string
+		newBeforeCursor := newCursor()
+		startCursorFields, err = c.cursorMarshaler.Marshal(edges[0].GetNode())
+		if err != nil {
+			return
+		}
+		newBeforeCursor.before = startCursorFields
+		startCursorStr, err = newBeforeCursor.BeforeCursor()
+		if err != nil {
+			return
+		}
+		pageInfo.StartCursor = &startCursorStr
+		//pageInfo.HasPreviousPage = true
+		//}
 	}
 
 	return
