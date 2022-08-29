@@ -219,23 +219,7 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	// decorate all the Edges with a cursor which is the cursor to supply to an after argument to start a page at this Edge.
 	newEdgeCursor := newCursor()
 
-	//// first edge is special case if we are paging forward
-	//// if the cursor supplied by caller to query had an after then we are not at the beginning of the Connection
-	//if len(edges) > 0 && c.isForward() {
-	//	if c.isAfter() {
-	//		newEdgeCursor.after = c.after
-	//	} else {
-	//		// we are at first item of first page so after = ""
-	//	}
-	//	var edgeCursrStr string
-	//	edgeCursrStr, err = newEdgeCursor.AfterCursor()
-	//	if err != nil {
-	//		return
-	//	}
-	//	edges[0].SetCursor(edgeCursrStr)
-	//}
-
-	// add cursors to all of the edges
+	// add cursors to all the edges
 	for i := 0; i < len(edges); i++ {
 		newEdgeCursor = newCursor()
 		var cursorFields map[string]string
@@ -282,8 +266,7 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	connection.SetPageInfo(pageInfo)
 
 	if len(edges) > 0 {
-
-		//if pageInfo.HasNextPage {
+		//set AfterCursor
 		var endCursorFields map[string]string
 		var endCursorStr string
 		newAfterCursor := newCursor()
@@ -297,9 +280,8 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 			return
 		}
 		pageInfo.EndCursor = &endCursorStr
-		//}
 
-		//if c.isAfter() || (!c.isForward() && pageInfo.HasPreviousPage) {
+		//set BeforeCursor
 		var startCursorFields map[string]string
 		var startCursorStr string
 		newBeforeCursor := newCursor()
@@ -313,8 +295,6 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 			return
 		}
 		pageInfo.StartCursor = &startCursorStr
-		//pageInfo.HasPreviousPage = true
-		//}
 	}
 
 	return

@@ -75,7 +75,7 @@ type PersonConnection struct {
 	totalCount uint64
 }
 
-func (dc *PersonConnection) Edges() []*PersonEdge {
+func (dc *PersonConnection) GetEdges() []*PersonEdge {
 	return dc.edges
 }
 
@@ -87,11 +87,7 @@ func (dc *PersonConnection) SetEdges(edges []apicursor.Edge) {
 	}
 }
 
-func (dc *PersonConnection) Nodes() []*Person {
-	return dc.nodes
-}
-
-func (dc *PersonConnection) NodesTyped() []*Person {
+func (dc *PersonConnection) GetNodes() []*Person {
 	return dc.nodes
 }
 
@@ -103,7 +99,7 @@ func (dc *PersonConnection) SetNodes(nodes []interface{}) {
 	}
 }
 
-func (dc *PersonConnection) PageInfo() *apicursor.PageInfo {
+func (dc *PersonConnection) GetPageInfo() *apicursor.PageInfo {
 	return dc.pageInfo
 }
 
@@ -111,7 +107,7 @@ func (dc *PersonConnection) SetPageInfo(pginfo *apicursor.PageInfo) {
 	dc.pageInfo = pginfo
 }
 
-func (dc *PersonConnection) TotalCount() uint64 {
+func (dc *PersonConnection) GetTotalCount() uint64 {
 	return dc.totalCount
 }
 
@@ -126,16 +122,12 @@ type PersonEdge struct {
 	node *Person
 }
 
-func (de *PersonEdge) Cursor() string {
+func (de *PersonEdge) GetCursor() string {
 	return de.cursor
 }
 
 func (de *PersonEdge) SetCursor(c string) {
 	de.cursor = c
-}
-
-func (de *PersonEdge) Node() *Person {
-	return de.node
 }
 
 func (de *PersonEdge) GetNode() interface{} {
@@ -168,13 +160,26 @@ func (r *queryResolver) Persons(ctx context.Context, after *string, before *stri
 type PersonCursorMarshaler struct{}
 
 func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilter bson.M, naturalSortDirection int) (err error) {
-	err = c.SetTimeCursorFilter(findFilter, "createdTime", naturalSortDirection)
+    timeFieldName, idFieldName := "createdTime", "_id"
+    cursorFilters := bson.M{}
+	err = c.SetTimeCursorFilter(cursorFilters, "createdTime", naturalSortDirection)
 	if err != nil {
 		return
 	}
-	err = c.SetUUIDCursorFilter(findFilter, "_id", naturalSortDirection)
+	err = c.SetUUIDCursorFilter(cursorFilters, "_id", naturalSortDirection)
 	if err != nil {
 		return
+	}
+	if len(cursorFilters) > 0 {
+		timeFilter := cursorFilters[timeFieldName].(bson.D)[0]
+		idFilter := cursorFilters[idFieldName].(bson.D)[0]
+		findFilter["$or"] = bson.A{
+			bson.M{timeFieldName: bson.M{timeFilter.Key: timeFilter.Value}},
+			bson.M{
+				timeFieldName: timeFilter.Value,
+				idFieldName:       bson.M{idFilter.Key: idFilter.Value},
+			},
+		}
 	}
 	return
 }
