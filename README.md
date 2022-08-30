@@ -66,76 +66,76 @@ func (df *PersonFactory) NewEdge() apicursor.Edge {
 
 type PersonConnection struct {
 	// A list of edges.
-	edges []*PersonEdge
+	Edges []*PersonEdge
 	// A list of nodes.
-	nodes []*Person
+	Nodes []*Person
 	// Information to aid in pagination.
-	pageInfo *apicursor.PageInfo
+	PageInfo *apicursor.PageInfo
 	// Identifies the total count of items in the connection.
-	totalCount uint64
+	TotalCount uint64
 }
 
 func (dc *PersonConnection) GetEdges() []*PersonEdge {
-	return dc.edges
+	return dc.Edges
 }
 
 func (dc *PersonConnection) SetEdges(edges []apicursor.Edge) {
-	dc.edges = make([]*PersonEdge, len(edges))
+	dc.Edges = make([]*PersonEdge, len(edges))
 	for i, d := range edges {
 		de := d.(*PersonEdge)
-		dc.edges[i] = de
+		dc.Edges[i] = de
 	}
 }
 
 func (dc *PersonConnection) GetNodes() []*Person {
-	return dc.nodes
+	return dc.Nodes
 }
 
 func (dc *PersonConnection) SetNodes(nodes []interface{}) {
-	dc.nodes = make([]*Person, len(nodes))
+	dc.Nodes = make([]*Person, len(nodes))
 	for i, d := range nodes {
 		dev := d.(*Person)
-		dc.nodes[i] = dev
+		dc.Nodes[i] = dev
 	}
 }
 
 func (dc *PersonConnection) GetPageInfo() *apicursor.PageInfo {
-	return dc.pageInfo
+	return dc.PageInfo
 }
 
 func (dc *PersonConnection) SetPageInfo(pginfo *apicursor.PageInfo) {
-	dc.pageInfo = pginfo
+	dc.PageInfo = pginfo
 }
 
 func (dc *PersonConnection) GetTotalCount() uint64 {
-	return dc.totalCount
+	return dc.TotalCount
 }
 
 func (dc *PersonConnection) SetTotalCount(count uint64) {
-	dc.totalCount = count
+	dc.TotalCount = count
 }
 
 type PersonEdge struct {
 	// A cursor for use in pagination.
-	cursor string
+	Cursor string
 	// The item at the end of the edge.
-	node *Person
+	Node *Person
 }
 
 func (de *PersonEdge) GetCursor() string {
-	return de.cursor
+	return de.Cursor
 }
 
 func (de *PersonEdge) SetCursor(c string) {
-	de.cursor = c
+	de.Cursor = c
 }
 
 func (de *PersonEdge) GetNode() interface{} {
-	return de.node
+	return de.Node
 }
 
 func (de *PersonEdge) SetNode(node interface{}) {
-	de.node = node.(*Person)
+	de.Node = node.(*Person)
 }
 
 // PersonOrder Ordering options for Person connections
