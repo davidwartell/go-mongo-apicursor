@@ -326,7 +326,8 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 		c.requestParams.first = &newFirst
 	}
 
-	if after != nil && len(*after) > 0 {
+	// only use after if first is specified
+	if c.isFirst() && after != nil && len(*after) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*after)
 		if err != nil {
@@ -342,7 +343,8 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 		}
 
 		c.requestParams.after = &cursorStr
-	} else if before != nil && len(*before) > 0 {
+		// only use before if first is specified
+	} else if c.isLast() && before != nil && len(*before) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*before)
 		if err != nil {
@@ -369,9 +371,8 @@ func (c *cursor) FindLimit() int64 {
 func (c *cursor) CursorFilterSortDirection(naturalSortDirection int) int {
 	if c.isForward() {
 		return naturalSortDirection
-	} else {
-		return naturalSortDirection * -1
 	}
+	return naturalSortDirection * -1
 }
 
 // SetTimeCursorFilter looks for a field named fieldName in the cursor and assumes it is a time.Time
@@ -464,8 +465,10 @@ func (c *cursor) isLast() bool {
 }
 
 func (c *cursor) isForward() bool {
-	//if before is set, or after is not set and last is set, then going backwards
-	if c.isBefore() || (!c.isAfter() && c.isLast()) {
+	if c.isAfter() || c.isFirst() {
+		return true
+	}
+	if c.isBefore() || c.isLast() {
 		return false
 	}
 	return true
