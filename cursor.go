@@ -343,7 +343,7 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 		}
 
 		c.requestParams.after = &cursorStr
-		// only use before if first is specified
+		// only use before if last is specified
 	} else if c.isLast() && before != nil && len(*before) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*before)
