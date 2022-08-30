@@ -455,9 +455,17 @@ func (c *cursor) isBefore() bool {
 	return len(c.before) > 0
 }
 
+func (c *cursor) isFirst() bool {
+	return c.requestParams.first != nil && *c.requestParams.first > 0
+}
+
+func (c *cursor) isLast() bool {
+	return c.requestParams.last != nil && *c.requestParams.last > 0
+}
+
 func (c *cursor) isForward() bool {
 	//if before is set, or after is not set and last is set, then going backwards
-	if c.isBefore() || (!c.isAfter() && (c.requestParams.last != nil && *c.requestParams.last > 0)) {
+	if c.isBefore() || (!c.isAfter() && c.isLast()) {
 		return false
 	}
 	return true
@@ -482,9 +490,9 @@ func scrubLimit(newLimit int) (scrubbed int32) {
 }
 
 func (c *cursor) limit() int32 {
-	if c.requestParams.first != nil {
+	if c.isFirst() {
 		return *c.requestParams.first
-	} else if c.requestParams.last != nil {
+	} else if c.isLast() {
 		return *c.requestParams.last
 	}
 	return DefaultLimit
