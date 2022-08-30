@@ -266,7 +266,7 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	connection.SetPageInfo(pageInfo)
 
 	if len(edges) > 0 {
-		//set AfterCursor
+		//set EndCursor
 		var endCursorFields map[string]string
 		var endCursorStr string
 		newAfterCursor := newCursor()
@@ -281,7 +281,7 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 		}
 		pageInfo.EndCursor = &endCursorStr
 
-		//set BeforeCursor
+		//set StartCursor
 		var startCursorFields map[string]string
 		var startCursorStr string
 		newBeforeCursor := newCursor()
@@ -429,8 +429,6 @@ func (c *cursor) SetStringCursorFilter(findFilter bson.M, fieldName string, natu
 		// if no cursor specified do nothing and that's ok
 		return
 	}
-	// Note: If we have a cursor it should be a valid one so error after here
-
 	if fieldValue, ok := cursorValues[fieldName]; ok {
 		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), fieldValue}}
 	} else {
@@ -458,10 +456,8 @@ func (c *cursor) isBefore() bool {
 }
 
 func (c *cursor) isForward() bool {
-	if c.isAfter() || (c.requestParams.first != nil && *c.requestParams.first > 0) {
-		return true
-	}
-	if c.isBefore() || (c.requestParams.last != nil && *c.requestParams.last > 0) {
+	//if before is set, or after is not set and last is set, then going backwards
+	if c.isBefore() || (!c.isAfter() && (c.requestParams.last != nil && *c.requestParams.last > 0)) {
 		return false
 	}
 	return true
