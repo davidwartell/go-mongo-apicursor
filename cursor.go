@@ -48,6 +48,9 @@ type APICursor interface {
 	// SetUUIDCursorFilter attempts to apply fieldName to the filter parsed as a mongouuid.UUID
 	SetUUIDCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
+	// SetStringCursorFilter attempts to apply fieldName to the filter parsed as a string
+	SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
+
 	// FindLimit calculates the limit to a database query based on requested count
 	FindLimit() int64
 
@@ -216,27 +219,11 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	// decorate all the Edges with a cursor which is the cursor to supply to an after argument to start a page at this Edge.
 	newEdgeCursor := newCursor()
 
-	// first edge is special case if we are paging forward
-	// if the cursor supplied by caller to query had an after then we are not at the beginning of the Connection
-	if len(edges) > 0 && c.isForward() {
-		if c.isAfter() {
-			newEdgeCursor.after = c.after
-		} else {
-			// we are at first item of first page so after = ""
-		}
-		var edgeCursrStr string
-		edgeCursrStr, err = newEdgeCursor.AfterCursor()
-		if err != nil {
-			return
-		}
-		edges[0].SetCursor(edgeCursrStr)
-	}
-
-	// add cursors to all of the edges
-	for i := 1; i < len(edges); i++ {
+	// add cursors to all the edges
+	for i := 0; i < len(edges); i++ {
 		newEdgeCursor = newCursor()
 		var cursorFields map[string]string
-		cursorFields, err = c.cursorMarshaler.Marshal(edges[i-1].GetNode())
+		cursorFields, err = c.cursorMarshaler.Marshal(edges[i].GetNode())
 		if err != nil {
 			return
 		}
@@ -279,38 +266,35 @@ func (c *cursor) ConnectionFromMongoCursor(ctx context.Context, mongoCursor *mon
 	connection.SetPageInfo(pageInfo)
 
 	if len(edges) > 0 {
-		if pageInfo.HasNextPage {
-			newAfterCursor := newCursor()
-			var cursorFields map[string]string
-			cursorFields, err = c.cursorMarshaler.Marshal(edges[len(edges)-1].GetNode())
-			if err != nil {
-				return
-			}
-			newAfterCursor.after = cursorFields
-			var edgeCursrStr string
-			edgeCursrStr, err = newEdgeCursor.AfterCursor()
-			if err != nil {
-				return
-			}
-			pageInfo.EndCursor = &edgeCursrStr
+		//set EndCursor
+		var endCursorFields map[string]string
+		var endCursorStr string
+		newAfterCursor := newCursor()
+		endCursorFields, err = c.cursorMarshaler.Marshal(edges[len(edges)-1].GetNode())
+		if err != nil {
+			return
 		}
+		newAfterCursor.after = endCursorFields
+		endCursorStr, err = newAfterCursor.AfterCursor()
+		if err != nil {
+			return
+		}
+		pageInfo.EndCursor = &endCursorStr
 
-		if c.isAfter() || (!c.isForward() && pageInfo.HasPreviousPage) {
-			newBeforeCursor := newCursor()
-			var cursorFields map[string]string
-			cursorFields, err = c.cursorMarshaler.Marshal(edges[0].GetNode())
-			if err != nil {
-				return
-			}
-			newBeforeCursor.before = cursorFields
-			var edgeCursrStr string
-			edgeCursrStr, err = newBeforeCursor.BeforeCursor()
-			if err != nil {
-				return
-			}
-			pageInfo.StartCursor = &edgeCursrStr
-			pageInfo.HasPreviousPage = true
+		//set StartCursor
+		var startCursorFields map[string]string
+		var startCursorStr string
+		newBeforeCursor := newCursor()
+		startCursorFields, err = c.cursorMarshaler.Marshal(edges[0].GetNode())
+		if err != nil {
+			return
 		}
+		newBeforeCursor.before = startCursorFields
+		startCursorStr, err = newBeforeCursor.BeforeCursor()
+		if err != nil {
+			return
+		}
+		pageInfo.StartCursor = &startCursorStr
 	}
 
 	return
@@ -343,7 +327,7 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 	}
 
 	// only use after if first is specified
-	if c.requestParams.first != nil && after != nil && len(*after) > 0 {
+	if c.isFirst() && after != nil && len(*after) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*after)
 		if err != nil {
@@ -359,7 +343,8 @@ func (c *cursor) LoadFromAPIRequest(after *string, before *string, first *int, l
 		}
 
 		c.requestParams.after = &cursorStr
-	} else if c.requestParams.last != nil && before != nil && len(*before) > 0 {
+		// only use before if last is specified
+	} else if c.isLast() && before != nil && len(*before) > 0 {
 		var cursorBytes []byte
 		cursorBytes, err = base64.URLEncoding.DecodeString(*before)
 		if err != nil {
@@ -386,9 +371,8 @@ func (c *cursor) FindLimit() int64 {
 func (c *cursor) CursorFilterSortDirection(naturalSortDirection int) int {
 	if c.isForward() {
 		return naturalSortDirection
-	} else {
-		return naturalSortDirection * -1
 	}
+	return naturalSortDirection * -1
 }
 
 // SetTimeCursorFilter looks for a field named fieldName in the cursor and assumes it is a time.Time
@@ -439,6 +423,22 @@ func (c *cursor) SetUUIDCursorFilter(findFilter bson.M, fieldName string, natura
 	return
 }
 
+// SetStringCursorFilter looks for a field named fieldName in the cursor and assumes it is a string
+func (c *cursor) SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error) {
+	cursorValues := c.cursorFilter()
+	if len(cursorValues) == 0 {
+		// if no cursor specified do nothing and that's ok
+		return
+	}
+	if fieldValue, ok := cursorValues[fieldName]; ok {
+		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), fieldValue}}
+	} else {
+		err = errors.Errorf("cursor invalid: expected field name %s not found", fieldName)
+		return
+	}
+	return
+}
+
 func (c *cursor) cursorFilterOperator(naturalSortDirection int) string {
 	direction := c.CursorFilterSortDirection(naturalSortDirection)
 	if direction > 0 {
@@ -456,11 +456,19 @@ func (c *cursor) isBefore() bool {
 	return len(c.before) > 0
 }
 
+func (c *cursor) isFirst() bool {
+	return c.requestParams.first != nil && *c.requestParams.first > 0
+}
+
+func (c *cursor) isLast() bool {
+	return c.requestParams.last != nil && *c.requestParams.last > 0
+}
+
 func (c *cursor) isForward() bool {
-	if c.isAfter() || (c.requestParams.first != nil && *c.requestParams.first > 0) {
+	if c.isAfter() || c.isFirst() {
 		return true
 	}
-	if c.isBefore() || (c.requestParams.last != nil && *c.requestParams.last > 0) {
+	if c.isBefore() || c.isLast() {
 		return false
 	}
 	return true
@@ -485,9 +493,9 @@ func scrubLimit(newLimit int) (scrubbed int32) {
 }
 
 func (c *cursor) limit() int32 {
-	if c.requestParams.first != nil {
+	if c.isFirst() {
 		return *c.requestParams.first
-	} else if c.requestParams.last != nil {
+	} else if c.isLast() {
 		return *c.requestParams.last
 	}
 	return DefaultLimit

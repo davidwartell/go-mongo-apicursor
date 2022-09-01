@@ -66,84 +66,76 @@ func (df *PersonFactory) NewEdge() apicursor.Edge {
 
 type PersonConnection struct {
 	// A list of edges.
-	edges []*PersonEdge
+	Edges []*PersonEdge
 	// A list of nodes.
-	nodes []*Person
+	Nodes []*Person
 	// Information to aid in pagination.
-	pageInfo *apicursor.PageInfo
+	PageInfo *apicursor.PageInfo
 	// Identifies the total count of items in the connection.
-	totalCount uint64
+	TotalCount uint64
 }
 
-func (dc *PersonConnection) Edges() []*PersonEdge {
-	return dc.edges
+func (dc *PersonConnection) GetEdges() []*PersonEdge {
+	return dc.Edges
 }
 
 func (dc *PersonConnection) SetEdges(edges []apicursor.Edge) {
-	dc.edges = make([]*PersonEdge, len(edges))
+	dc.Edges = make([]*PersonEdge, len(edges))
 	for i, d := range edges {
 		de := d.(*PersonEdge)
-		dc.edges[i] = de
+		dc.Edges[i] = de
 	}
 }
 
-func (dc *PersonConnection) Nodes() []*Person {
-	return dc.nodes
-}
-
-func (dc *PersonConnection) NodesTyped() []*Person {
-	return dc.nodes
+func (dc *PersonConnection) GetNodes() []*Person {
+	return dc.Nodes
 }
 
 func (dc *PersonConnection) SetNodes(nodes []interface{}) {
-	dc.nodes = make([]*Person, len(nodes))
+	dc.Nodes = make([]*Person, len(nodes))
 	for i, d := range nodes {
 		dev := d.(*Person)
-		dc.nodes[i] = dev
+		dc.Nodes[i] = dev
 	}
 }
 
-func (dc *PersonConnection) PageInfo() *apicursor.PageInfo {
-	return dc.pageInfo
+func (dc *PersonConnection) GetPageInfo() *apicursor.PageInfo {
+	return dc.PageInfo
 }
 
 func (dc *PersonConnection) SetPageInfo(pginfo *apicursor.PageInfo) {
-	dc.pageInfo = pginfo
+	dc.PageInfo = pginfo
 }
 
-func (dc *PersonConnection) TotalCount() uint64 {
-	return dc.totalCount
+func (dc *PersonConnection) GetTotalCount() uint64 {
+	return dc.TotalCount
 }
 
 func (dc *PersonConnection) SetTotalCount(count uint64) {
-	dc.totalCount = count
+	dc.TotalCount = count
 }
 
 type PersonEdge struct {
 	// A cursor for use in pagination.
-	cursor string
+	Cursor string
 	// The item at the end of the edge.
-	node *Person
+	Node *Person
 }
 
-func (de *PersonEdge) Cursor() string {
-	return de.cursor
+func (de *PersonEdge) GetCursor() string {
+	return de.Cursor
 }
 
 func (de *PersonEdge) SetCursor(c string) {
-	de.cursor = c
-}
-
-func (de *PersonEdge) Node() *Person {
-	return de.node
+	de.Cursor = c
 }
 
 func (de *PersonEdge) GetNode() interface{} {
-	return de.node
+	return de.Node
 }
 
 func (de *PersonEdge) SetNode(node interface{}) {
-	de.node = node.(*Person)
+	de.Node = node.(*Person)
 }
 
 // PersonOrder Ordering options for Person connections
@@ -168,13 +160,26 @@ func (r *queryResolver) Persons(ctx context.Context, after *string, before *stri
 type PersonCursorMarshaler struct{}
 
 func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilter bson.M, naturalSortDirection int) (err error) {
-	err = c.SetTimeCursorFilter(findFilter, "createdTime", naturalSortDirection)
+    timeFieldName, idFieldName := "createdTime", "_id"
+    cursorFilters := bson.M{}
+	err = c.SetTimeCursorFilter(cursorFilters, "createdTime", naturalSortDirection)
 	if err != nil {
 		return
 	}
-	err = c.SetUUIDCursorFilter(findFilter, "_id", naturalSortDirection)
+	err = c.SetUUIDCursorFilter(cursorFilters, "_id", naturalSortDirection)
 	if err != nil {
 		return
+	}
+	if len(cursorFilters) > 0 {
+		timeFilter := cursorFilters[timeFieldName].(bson.D)[0]
+		idFilter := cursorFilters[idFieldName].(bson.D)[0]
+		findFilter["$or"] = bson.A{
+			bson.M{timeFieldName: bson.M{timeFilter.Key: timeFilter.Value}},
+			bson.M{
+				timeFieldName: timeFilter.Value,
+				idFieldName:       bson.M{idFilter.Key: idFilter.Value},
+			},
+		}
 	}
 	return
 }
