@@ -173,15 +173,9 @@ func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilte
 }
 
 func (dcm PersonCursorMarshaler) Marshal(obj interface{}) (cursorFields map[string]string, err error) {
-	dev := obj.(*Person)
-	cursorFields = make(map[string]string)
-	var marshaledBytes []byte
-	marshaledBytes, err = dev.ServerCreated.MarshalText()
-	if err != nil {
-		return
-	}
-	cursorFields["createdTime"] = string(marshaledBytes)
-	cursorFields["_id"] = dev.SortCursor.String()
+	person := obj.(*Person)
+	cursorFields["createdTime"], err = apicursor.MarshalTimeField(person.CreatedTime)
+	cursorFields["_id"] = apicursor.MarshalMongoOidField(person.Id)
 	return
 }
 

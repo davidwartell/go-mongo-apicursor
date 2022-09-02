@@ -480,6 +480,16 @@ func (c *cursor) UnmarshalTimeField(fieldName string) (timeResult time.Time, err
 	}
 }
 
+func MarshalTimeField(t time.Time) (v string, err error) {
+	var marshaledBytes []byte
+	marshaledBytes, err = t.MarshalText()
+	if err != nil {
+		return
+	}
+	v = string(marshaledBytes)
+	return
+}
+
 // SetTimeCursorFilter looks for a field named fieldName in the cursor and assumes it is a time.Time
 // Deprecated: use AddCursorFilters
 func (c *cursor) SetTimeCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error) {
@@ -512,6 +522,10 @@ func (c *cursor) UnmarshalMongoOidField(fieldName string) (uuid primitive.Object
 		err = errors.Errorf("Error cursor field (%s) not found", fieldName)
 		return
 	}
+}
+
+func MarshalMongoOidField(o primitive.ObjectID) (v string, err error) {
+	return o.Hex(), nil
 }
 
 // SetUUIDCursorFilter looks for a field named fieldName in the cursor and assumes it is a mongouuid.UUID
