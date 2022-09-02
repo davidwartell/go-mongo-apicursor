@@ -43,13 +43,19 @@ type APICursor interface {
 	// LoadFromAPIRequest loads a cursor from query input and sets the modelFactory.
 	LoadFromAPIRequest(after *string, before *string, first *int, last *int, modelFactory ModelFactory) (err error)
 
+	// AddCursorFilters adds an ordered list of cursor fields to the filter with logic and is intended to be called by a UnmarshalMongo() implementation.
+	AddCursorFilters(findFilter bson.M, naturalSortDirection int, filterFields ...CursorFilterField) (err error)
+
 	// SetTimeCursorFilter attempts to apply fieldName to the filter parsed as a time.Time
+	// Deprecated: use AddCursorFilters
 	SetTimeCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
 	// SetUUIDCursorFilter attempts to apply fieldName to the filter parsed as a mongouuid.UUID
+	// Deprecated: use AddCursorFilters
 	SetUUIDCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
 	// SetStringCursorFilter attempts to apply fieldName to the filter parsed as a string
+	// Deprecated: use AddCursorFilters
 	SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
 	// FindLimit calculates the limit to a database query based on requested count
@@ -95,6 +101,23 @@ type CursorMarshaler interface {
 
 	// Marshal accepts a model type and returns an error or a map of key values for the document fields to serialize in the cursor.
 	Marshal(obj interface{}) (cursorFields map[string]string, err error)
+}
+
+type CursorFieldType int
+
+const (
+	CursorFieldTypeTime CursorFieldType = iota
+	CursorFieldTypeMongoOid
+	CursorFieldTypeString
+)
+
+func (t CursorFieldType) Int() int {
+	return int(t)
+}
+
+type CursorFilterField struct {
+	FieldName string
+	FieldType CursorFieldType
 }
 
 type DocumentCursorText func(document interface{}) (err error)
@@ -374,23 +397,6 @@ func (c *cursor) CursorFilterSortDirection(naturalSortDirection int) int {
 		return naturalSortDirection
 	}
 	return naturalSortDirection * -1
-}
-
-type CursorFieldType int
-
-const (
-	CursorFieldTypeTime CursorFieldType = iota
-	CursorFieldTypeMongoOid
-	CursorFieldTypeString
-)
-
-func (t CursorFieldType) Int() int {
-	return int(t)
-}
-
-type CursorFilterField struct {
-	FieldName string
-	FieldType CursorFieldType
 }
 
 func (c *cursor) AddCursorFilters(findFilter bson.M, naturalSortDirection int, filterFields ...CursorFilterField) (err error) {
