@@ -1,8 +1,13 @@
 # go-mongo-apicursor
 
-Go code for helping with keeping MongoDB cursors across web service calls, especially GraphQL. Apache License.
+A golang implementation of the Relay GraphQL Cursor Connections
+Specification (https://relay.dev/graphql/connections.htm)
+for MongoDB. Apache License. Will also work with REST apis to solve the same problem of sharing a cursor to MongoDB
+query results over a web service request/response.
 
 ### Prerequisites
+
+If you want to run the linter you will need golangci installed.
 
 HomeBrew: https://brew.sh/
 
@@ -11,6 +16,7 @@ brew install golangci/tap/golangci-lint
 ```
 
 ### Building
+
 ```
 make setup
 make all
@@ -174,6 +180,7 @@ func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilte
 
 func (dcm PersonCursorMarshaler) Marshal(obj interface{}) (cursorFields map[string]string, err error) {
 	person := obj.(*Person)
+	cursorFields = make(map[string]string)
 	cursorFields["createdTime"], err = apicursor.MarshalTimeField(person.CreatedTime)
 	cursorFields["_id"] = apicursor.MarshalMongoOidField(person.Id)
 	return
