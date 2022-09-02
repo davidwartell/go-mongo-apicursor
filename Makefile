@@ -43,8 +43,8 @@ golint: ## Run golangci-lint linter.
 
 GO_MODULES += "github.com/json-iterator/go"
 GO_MODULES += "go.mongodb.org/mongo-driver/mongo"
-GO_MODULES += "github.com/davidwartell/go-commons-drw"
 GO_MODULES += "github.com/pkg/errors"
+GO_MODULES += "github.com/stretchr/testify"
 
 GO_MODULES_TOOLS += "github.com/securego/gosec/v2/cmd/gosec"
 
