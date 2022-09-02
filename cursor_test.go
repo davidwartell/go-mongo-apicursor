@@ -38,20 +38,14 @@ func TestAddCursorFiltersMulti(t *testing.T) {
 	expectedFilter := primitive.M{
 		"$or": primitive.A{
 			primitive.M{
-				"created": primitive.D{{
-					Key: "$gt", Value: createdTime,
-				}},
+				"created": primitive.M{
+					"$gt": createdTime,
+				},
 			},
 			primitive.M{
-				"$and": primitive.A{
-					primitive.M{
-						"created": createdTime,
-					},
-					primitive.M{
-						"oid": primitive.D{{
-							Key: "$gt", Value: mongoOid,
-						}},
-					},
+				"created": createdTime,
+				"oid": primitive.M{
+					"$gt": mongoOid,
 				},
 			},
 		},
@@ -86,9 +80,9 @@ func TestAddCursorFiltersSingle(t *testing.T) {
 	require.Nil(t, err)
 
 	expectedFilter := primitive.M{
-		"created": primitive.D{{
-			Key: "$gt", Value: createdTime,
-		}},
+		"created": primitive.M{
+			"$gt": createdTime,
+		},
 	}
 
 	assert.Equal(t, expectedFilter, findFilter)

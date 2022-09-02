@@ -94,8 +94,8 @@ func (dc *PersonConnection) GetNodes() []*Person {
 func (dc *PersonConnection) SetNodes(nodes []interface{}) {
 	dc.Nodes = make([]*Person, len(nodes))
 	for i, d := range nodes {
-		dev := d.(*Person)
-		dc.Nodes[i] = dev
+		person := d.(*Person)
+		dc.Nodes[i] = person
 	}
 }
 
@@ -160,28 +160,16 @@ func (r *queryResolver) Persons(ctx context.Context, after *string, before *stri
 type PersonCursorMarshaler struct{}
 
 func (dcm PersonCursorMarshaler) UnmarshalMongo(c apicursor.APICursor, findFilter bson.M, naturalSortDirection int) (err error) {
-    timeFieldName, idFieldName := "createdTime", "_id"
-    cursorFilters := bson.M{}
-	err = c.SetTimeCursorFilter(cursorFilters, "createdTime", naturalSortDirection)
-	if err != nil {
-		return
-	}
-	err = c.SetUUIDCursorFilter(cursorFilters, "_id", naturalSortDirection)
-	if err != nil {
-		return
-	}
-	if len(cursorFilters) > 0 {
-		timeFilter := cursorFilters[timeFieldName].(bson.D)[0]
-		idFilter := cursorFilters[idFieldName].(bson.D)[0]
-		findFilter["$or"] = bson.A{
-			bson.M{timeFieldName: bson.M{timeFilter.Key: timeFilter.Value}},
-			bson.M{
-				timeFieldName: timeFilter.Value,
-				idFieldName:       bson.M{idFilter.Key: idFilter.Value},
-			},
-		}
-	}
-	return
+	return c.AddCursorFilters(findFilter, naturalSortDirection,
+		apicursor.CursorFilterField{
+			FieldName: "createdTime",
+			FieldType: apicursor.CursorFieldTypeTime,
+		},
+		apicursor.CursorFilterField{
+			FieldName: "_id",
+			FieldType: apicursor.CursorFieldTypeMongoOid,
+		},
+	)
 }
 
 func (dcm PersonCursorMarshaler) Marshal(obj interface{}) (cursorFields map[string]string, err error) {

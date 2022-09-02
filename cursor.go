@@ -416,7 +416,7 @@ func (c *cursor) AddCursorFilters(findFilter bson.M, naturalSortDirection int, f
 		}
 
 		newFilter := bson.M{
-			filterField.FieldName: bson.D{{c.cursorFilterOperator(naturalSortDirection), newFilterFieldValue}},
+			filterField.FieldName: bson.M{c.cursorFilterOperator(naturalSortDirection): newFilterFieldValue},
 		}
 		if i == 0 {
 			filters = append(filters, newFilter)
@@ -424,25 +424,17 @@ func (c *cursor) AddCursorFilters(findFilter bson.M, naturalSortDirection int, f
 		}
 
 		// multiple filters add the fields before this field to match $eq
-		var andList bson.A
 		for j := 0; j < i; j++ {
 			var newPrependFilterFieldValue interface{}
 			newPrependFilterFieldValue, err = c.UnmarshalFieldValue(filterFields[j])
 			if err != nil {
 				return
 			}
-			prependEqualFilter := bson.M{
-				filterFields[j].FieldName: newPrependFilterFieldValue,
-			}
-			andList = append(andList, prependEqualFilter)
+			newFilter[filterFields[j].FieldName] = newPrependFilterFieldValue
 		}
 
 		// finally add the filter
-		andList = append(andList, newFilter)
-		andFilter := bson.M{
-			"$and": andList,
-		}
-		filters = append(filters, andFilter)
+		filters = append(filters, newFilter)
 	}
 
 	if len(filters) == 1 {
