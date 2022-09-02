@@ -20,11 +20,12 @@ package apicursor
 import (
 	"context"
 	"encoding/base64"
-	"github.com/davidwartell/go-commons-drw/mongouuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"strings"
 	"time"
 )
 
@@ -42,13 +43,19 @@ type APICursor interface {
 	// LoadFromAPIRequest loads a cursor from query input and sets the modelFactory.
 	LoadFromAPIRequest(after *string, before *string, first *int, last *int, modelFactory ModelFactory) (err error)
 
+	// AddCursorFilters adds an ordered list of cursor fields to the filter with logic and is intended to be called by a UnmarshalMongo() implementation.
+	AddCursorFilters(findFilter bson.M, naturalSortDirection int, filterFields ...CursorFilterField) (err error)
+
 	// SetTimeCursorFilter attempts to apply fieldName to the filter parsed as a time.Time
+	// Deprecated: use AddCursorFilters
 	SetTimeCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
 	// SetUUIDCursorFilter attempts to apply fieldName to the filter parsed as a mongouuid.UUID
+	// Deprecated: use AddCursorFilters
 	SetUUIDCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
 	// SetStringCursorFilter attempts to apply fieldName to the filter parsed as a string
+	// Deprecated: use AddCursorFilters
 	SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error)
 
 	// FindLimit calculates the limit to a database query based on requested count
@@ -94,6 +101,23 @@ type CursorMarshaler interface {
 
 	// Marshal accepts a model type and returns an error or a map of key values for the document fields to serialize in the cursor.
 	Marshal(obj interface{}) (cursorFields map[string]string, err error)
+}
+
+type CursorFieldType int
+
+const (
+	CursorFieldTypeTime CursorFieldType = iota
+	CursorFieldTypeMongoOid
+	CursorFieldTypeString
+)
+
+func (t CursorFieldType) Int() int {
+	return int(t)
+}
+
+type CursorFilterField struct {
+	FieldName string
+	FieldType CursorFieldType
 }
 
 type DocumentCursorText func(document interface{}) (err error)
@@ -375,7 +399,99 @@ func (c *cursor) CursorFilterSortDirection(naturalSortDirection int) int {
 	return naturalSortDirection * -1
 }
 
+func (c *cursor) AddCursorFilters(findFilter bson.M, naturalSortDirection int, filterFields ...CursorFilterField) (err error) {
+	cursorValues := c.cursorFilter()
+	if len(cursorValues) == 0 {
+		// if no cursor specified do nothing and that's ok
+		return
+	}
+	// Note: If we have a cursor it should be a valid one so error after here
+
+	var filters []bson.M
+	for i, filterField := range filterFields {
+		var newFilterFieldValue interface{}
+		newFilterFieldValue, err = c.UnmarshalFieldValue(filterField)
+		if err != nil {
+			return
+		}
+
+		newFilter := bson.M{
+			filterField.FieldName: bson.M{c.cursorFilterOperator(naturalSortDirection): newFilterFieldValue},
+		}
+		if i == 0 {
+			filters = append(filters, newFilter)
+			continue
+		}
+
+		// multiple filters add the fields before this field to match $eq
+		for j := 0; j < i; j++ {
+			var newPrependFilterFieldValue interface{}
+			newPrependFilterFieldValue, err = c.UnmarshalFieldValue(filterFields[j])
+			if err != nil {
+				return
+			}
+			newFilter[filterFields[j].FieldName] = newPrependFilterFieldValue
+		}
+
+		// finally add the filter
+		filters = append(filters, newFilter)
+	}
+
+	if len(filters) == 1 {
+		for key, val := range filters[0] {
+			findFilter[key] = val
+		}
+	} else {
+		filterArray := make(bson.A, len(filters))
+		for j, filter := range filters {
+			filterArray[j] = filter
+		}
+		findFilter["$or"] = filterArray
+	}
+
+	return
+}
+
+func (c *cursor) UnmarshalFieldValue(filterField CursorFilterField) (result interface{}, err error) {
+	switch filterField.FieldType {
+	case CursorFieldTypeTime:
+		return c.UnmarshalTimeField(filterField.FieldName)
+	case CursorFieldTypeMongoOid:
+		return c.UnmarshalMongoOidField(filterField.FieldName)
+	case CursorFieldTypeString:
+		return c.UnmarshalStringField(filterField.FieldName)
+	default:
+		err = errors.Errorf("Error cursor field (%s) with type (%d) not a recognized type", filterField.FieldName, filterField.FieldType.Int())
+		return
+	}
+}
+
+func (c *cursor) UnmarshalTimeField(fieldName string) (timeResult time.Time, err error) {
+	if fieldValue, ok := c.cursorFilter()[fieldName]; ok {
+		err = timeResult.UnmarshalText([]byte(fieldValue))
+		if err != nil {
+			err = errors.Errorf("Error cursor field (%s) invalid expecting a type (%s)", fieldName, "time")
+			return
+		}
+		return
+	} else {
+		err = errors.Errorf("Error cursor field (%s) not found", fieldName)
+		return
+	}
+}
+
+func MarshalTimeField(t time.Time) (v string, err error) {
+	var marshaledBytes []byte
+	marshaledBytes, err = t.MarshalText()
+	if err != nil {
+		return
+	}
+	v = string(marshaledBytes)
+	return
+}
+
 // SetTimeCursorFilter looks for a field named fieldName in the cursor and assumes it is a time.Time
+// Deprecated: use AddCursorFilters
 func (c *cursor) SetTimeCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error) {
 	cursorValues := c.cursorFilter()
 	if len(cursorValues) == 0 {
@@ -384,22 +500,36 @@ func (c *cursor) SetTimeCursorFilter(findFilter bson.M, fieldName string, natura
 	}
 	// Note: If we have a cursor it should be a valid one so error after here
 
-	if fieldValue, ok := cursorValues[fieldName]; ok {
-		timeValue := time.Now()
-		err = timeValue.UnmarshalText([]byte(fieldValue))
+	var timeValue time.Time
+	timeValue, err = c.UnmarshalTimeField(fieldName)
+	if err != nil {
+		return
+	}
+
+	findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), timeValue}}
+	return
+}
+
+func (c *cursor) UnmarshalMongoOidField(fieldName string) (uuid primitive.ObjectID, err error) {
+	if fieldValue, ok := c.cursorFilter()[fieldName]; ok {
+		uuid, err = uuidFromString(fieldValue)
 		if err != nil {
-			err = errors.Errorf("Error cursor field (%s) invalid expecting a type (%s)", fieldName, "time")
+			err = errors.Wrapf(err, "cursor invalid: expected field name %s to be type bson objectId", fieldName)
 			return
 		}
-		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), timeValue}}
+		return
 	} else {
 		err = errors.Errorf("Error cursor field (%s) not found", fieldName)
 		return
 	}
-	return
+}
+
+func MarshalMongoOidField(o primitive.ObjectID) (v string, err error) {
+	return o.Hex(), nil
 }
 
 // SetUUIDCursorFilter looks for a field named fieldName in the cursor and assumes it is a mongouuid.UUID
+// Deprecated: use AddCursorFilters
 func (c *cursor) SetUUIDCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error) {
 	cursorValues := c.cursorFilter()
 	if len(cursorValues) == 0 {
@@ -407,35 +537,41 @@ func (c *cursor) SetUUIDCursorFilter(findFilter bson.M, fieldName string, natura
 		return
 	}
 	// Note: If we have a cursor it should be a valid one so error after here
-
-	if fieldValue, ok := cursorValues[fieldName]; ok {
-		var uuid mongouuid.UUID
-		uuid, err = mongouuid.UUIDFromString(fieldValue)
-		if err != nil {
-			err = errors.Wrapf(err, "cursor invalid: expected field name %s to be type UUID", fieldName)
-			return
-		}
-		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), uuid}}
-	} else {
-		err = errors.Errorf("cursor invalid: expected field name %s not found", fieldName)
+	var uuid primitive.ObjectID
+	uuid, err = c.UnmarshalMongoOidField(fieldName)
+	if err != nil {
 		return
 	}
+
+	findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), uuid}}
 	return
 }
 
+func (c *cursor) UnmarshalStringField(fieldName string) (fieldValue string, err error) {
+	var ok bool
+	if fieldValue, ok = c.cursorFilter()[fieldName]; ok {
+		return
+	} else {
+		err = errors.Errorf("Error cursor field (%s) not found", fieldName)
+		return
+	}
+}
+
 // SetStringCursorFilter looks for a field named fieldName in the cursor and assumes it is a string
+// Deprecated: use AddCursorFilters
 func (c *cursor) SetStringCursorFilter(findFilter bson.M, fieldName string, naturalSortDirection int) (err error) {
 	cursorValues := c.cursorFilter()
 	if len(cursorValues) == 0 {
 		// if no cursor specified do nothing and that's ok
 		return
 	}
-	if fieldValue, ok := cursorValues[fieldName]; ok {
-		findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), fieldValue}}
-	} else {
-		err = errors.Errorf("cursor invalid: expected field name %s not found", fieldName)
+	var fieldValue string
+	fieldValue, err = c.UnmarshalStringField(fieldName)
+	if err != nil {
 		return
 	}
+
+	findFilter[fieldName] = bson.D{{c.cursorFilterOperator(naturalSortDirection), fieldValue}}
 	return
 }
 
@@ -499,4 +635,14 @@ func (c *cursor) limit() int32 {
 		return *c.requestParams.last
 	}
 	return DefaultLimit
+}
+
+func uuidFromString(s string) (primitive.ObjectID, error) {
+	// remove any quotes
+	s = strings.Replace(s, "\"", "", -1)
+	o, err := primitive.ObjectIDFromHex(s)
+	if err != nil {
+		return primitive.NewObjectID(), errors.Wrapf(err, "String (%v) is not a valid UUID: %v", s, err)
+	}
+	return o, nil
 }
