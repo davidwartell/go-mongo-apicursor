@@ -236,3 +236,19 @@ func (s *personService) Find(ctx context.Context, queryCursor apicursor.APICurso
 	return
 }
 ```
+
+## Contributing
+
+Happy to accept PRs.
+
+# Author
+
+**davidwartell**
+
+* <http://github.com/davidwartell>
+* <http://linkedin.com/in/wartell>
+
+## License
+
+Released under the [Apache License](https://github.com/davidwartell/go-mongo-apicursor/blob/master/LICENSE).
+
